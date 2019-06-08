@@ -49,8 +49,8 @@ import numpy
 
 import sys
 
-PREDICTOR_PATH = "/home/matt/dlib-18.16/shape_predictor_68_face_landmarks.dat"
-SCALE_FACTOR = 1 
+PREDICTOR_PATH = "shape_predictor_68_face_landmarks.dat"
+SCALE_FACTOR = 1
 FEATHER_AMOUNT = 11
 
 FACE_POINTS = list(range(17, 68))
@@ -88,7 +88,7 @@ class NoFaces(Exception):
 
 def get_landmarks(im):
     rects = detector(im, 1)
-    
+
     if len(rects) > 1:
         raise TooManyFaces
     if len(rects) == 0:
@@ -125,7 +125,7 @@ def get_face_mask(im, landmarks):
     im = cv2.GaussianBlur(im, (FEATHER_AMOUNT, FEATHER_AMOUNT), 0)
 
     return im
-    
+
 def transformation_from_points(points1, points2):
     """
     Return an affine transformation [s * R | T] such that:
@@ -173,6 +173,14 @@ def read_im_and_landmarks(fname):
 
     return im, s
 
+def resieze_and_get_landmarks(im):
+    im = cv2.resize(im, (im.shape[1] * SCALE_FACTOR,
+                         im.shape[0] * SCALE_FACTOR))
+    s = get_landmarks(im)
+
+    return im, s
+
+
 def warp_im(im, M, dshape):
     output_im = numpy.zeros(dshape, dtype=im.dtype)
     cv2.warpAffine(im,
@@ -199,21 +207,23 @@ def correct_colours(im1, im2, landmarks1):
     return (im2.astype(numpy.float64) * im1_blur.astype(numpy.float64) /
                                                 im2_blur.astype(numpy.float64))
 
-im1, landmarks1 = read_im_and_landmarks(sys.argv[1])
-im2, landmarks2 = read_im_and_landmarks(sys.argv[2])
 
-M = transformation_from_points(landmarks1[ALIGN_POINTS],
-                               landmarks2[ALIGN_POINTS])
 
-mask = get_face_mask(im2, landmarks2)
-warped_mask = warp_im(mask, M, im1.shape)
-combined_mask = numpy.max([get_face_mask(im1, landmarks1), warped_mask],
-                          axis=0)
+def swap_faces(target_im, source_im):
+    im1, landmarks1 = resieze_and_get_landmarks(target_im)
+    im2, landmarks2 = resieze_and_get_landmarks(source_im)
 
-warped_im2 = warp_im(im2, M, im1.shape)
-warped_corrected_im2 = correct_colours(im1, warped_im2, landmarks1)
+    M = transformation_from_points(landmarks1[ALIGN_POINTS],
+                                   landmarks2[ALIGN_POINTS])
 
-output_im = im1 * (1.0 - combined_mask) + warped_corrected_im2 * combined_mask
+    mask = get_face_mask(im2, landmarks2)
+    warped_mask = warp_im(mask, M, im1.shape)
+    combined_mask = numpy.max([get_face_mask(im1, landmarks1), warped_mask],
+                              axis=0)
 
-cv2.imwrite('output.jpg', output_im)
+    warped_im2 = warp_im(im2, M, im1.shape)
+    warped_corrected_im2 = correct_colours(im1, warped_im2, landmarks1)
 
+    output_im = im1 * (1.0 - combined_mask) + warped_corrected_im2 * combined_mask
+
+    return output_im
