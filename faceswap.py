@@ -87,9 +87,10 @@ COLOUR_CORRECT_BLUR_FRAC = 0.6
 
 
 class FaceSwap():
-    def __init__(self):
+    def __init__(self, predicter_path):
         self.detector = dlib.get_frontal_face_detector()
-        self.predictor = dlib.shape_predictor(PREDICTOR_PATH)
+        self.predictor_path = predicter_path
+        self.predictor = dlib.shape_predictor(self.predicter_path)
 
 
 
